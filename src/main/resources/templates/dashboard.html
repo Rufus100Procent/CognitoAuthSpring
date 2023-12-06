@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard</title>
+</head>
+<style>
+    body {
+        background-image: url("https://images.unsplash.com/photo-1533035353720-f1c6a75cd8ab?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=687&q=80");
+    }
+</style>
+<body>
+<h1>Welcome</h1>
+
+<!-- View Users -->
+<h2>All users that exist in AWS Cognito</h2>
+<ul id="userList">
+    <li th:each="user : ${users}">
+        <span th:text="${user.username}"></span>
+    </li>
+</ul>
+
+<!-- Delete User Form -->
+<form id="deleteForm" onsubmit="deleteUser(event)">
+    <label for="usernameToDelete">Enter username to delete: </label>
+    <input type="text" id="usernameToDelete" name="username" required>
+    <button type="submit">Delete User</button>
+</form>
+
+<hr/>
+
+<!-- View Groups -->
+<h2>All groups that exist in AWS Cognito</h2>
+<ul id="groupList">
+    <li th:each="group : ${groups}">
+        <span th:text="${group.groupName}"></span>
+    </li>
+</ul>
+
+<!-- Add User to Group Form -->
+<form id="addGroupForm" onsubmit="addUserToGroup(event)">
+    <label for="addUsername">Enter username: </label>
+    <input type="text" id="addUsername" name="username" required>
+
+    <label for="addGroup">Enter group name: </label>
+    <input type="text" id="addGroup" name="groupName" required>
+
+    <button type="submit">Add User to Group</button>
+</form>
+
+<!-- Logout Button -->
+<form id="logoutForm" action="/logout" method="post">
+    <button type="submit">Logout</button>
+</form>
+
+<script>
+    function deleteUser(event) {
+        event.preventDefault();
+        var username = document.getElementById("usernameToDelete").value;
+        // Send an AJAX request to your Spring Boot endpoint for user deletion
+        fetch('/deleteUser/' + username, {
+            method: 'DELETE'
+        })
+            .then(response => {
+                if (response.ok) {
+                    // Update the user list on successful deletion
+                    location.reload();
+                } else {
+                    // Handle the error accordingly
+                    console.error('Error deleting user');
+                }
+            })
+            .catch(error => {
+                console.error('Error deleting user:', error);
+            });
+    }
+
+    function addUserToGroup(event) {
+        event.preventDefault();
+        var username = document.getElementById("addUsername").value;
+        var groupName = document.getElementById("addGroup").value;
+
+        // Send an AJAX request to your Spring Boot endpoint for adding user to group
+        fetch('/addUserToGroup?username=' + username + '&groupName=' + groupName, {
+            method: 'POST'
+        })
+            .then(response => {
+                if (response.ok) {
+                    // Update the group list on successful addition
+                    location.reload();
+                } else {
+                    // Handle the error accordingly
+                    console.error('Error adding user to group');
+                }
+            })
+            .catch(error => {
+                console.error('Error adding user to group:', error);
+            });
+    }
+</script>
+</body>
+</html>

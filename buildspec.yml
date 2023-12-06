@@ -1,0 +1,22 @@
+version: 0.2
+
+phases:
+  pre_build:
+    commands:
+      - mvn test -Dgroups="unit"
+      - mvn test -Dgroups="integration"
+      - echo Logging in to DockerHub
+      - docker login -u $DOCKERHUB_USERNAME -p $DOCKERHUB_PASSWORD
+
+  build:
+    commands:
+      - mvn test
+      - mvn clean install
+      - echo Building Docker image
+      - docker build --build-arg COGNITO_REGION=$REGION --build-arg USER_POOL=$USER_POOL --build-arg CLIENT_ID=$CLIENT_ID --build-arg ACCESS_KEY=$ACCESS_KEY --build-arg SECRET_KEY=$SECRET_KEY  -t stykle/stykle:test81 .
+      - docker push docker.io/stykle/stykle:test81
+
+  post_build:
+    commands:
+      - mvn verify
+      - echo Build completed on `date`
