@@ -10,6 +10,10 @@ import software.amazon.awssdk.services.cognitoidentityprovider.model.*;
 import java.util.Map;
 
 @Service
+/*
+* to do,
+* create a method that checks if user is a part of an admin group or default
+* */
 public class CognitoAuthService{
 
     private static final Logger logger = LoggerFactory.getLogger(CognitoAuthService.class);
