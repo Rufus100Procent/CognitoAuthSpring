@@ -128,8 +128,8 @@ public class AuthController {
 
 
     @PostMapping("/changePassword")
-    public String changePassword(@RequestParam String username, @RequestParam String previousPassword, @RequestParam String proposedPassword) {
-        cognitoService.changePassword(username, proposedPassword);
+    public String changePassword(@RequestParam String username, @RequestParam String newPassword, @RequestParam String previousPassword) {
+        cognitoService.changePassword(username, previousPassword);
         return "redirect:/dashboard";
     }
 

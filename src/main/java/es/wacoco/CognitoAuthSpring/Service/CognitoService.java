@@ -43,7 +43,7 @@ public class CognitoService {
             // Perform user sign-up
             awsCredentials.getCognitoClient().signUp(request);
 
-            // Add the user to the "defaultUser" group
+            // Add the user to the "Default" group
             addUserToGroup(username, "Default");
 
             logger.info("User sign-up successful for username: {}", username);
@@ -151,6 +151,23 @@ public class CognitoService {
         }
     }
 
+
+    public void changePassword(String username, String newPassword) {
+        try {
+            AdminSetUserPasswordRequest passwordRequest = AdminSetUserPasswordRequest.builder()
+                    .userPoolId(awsCredentials.getCognitoPoolId())
+                    .username(username)
+                    .password(newPassword)
+                    .permanent(true)
+                    .build();
+
+            awsCredentials.getCognitoClient().adminSetUserPassword(passwordRequest);
+            logger.info("Password set successfully for user: {}", username);
+        } catch (Exception e) {
+            logger.error("Error setting password for user: {}", username, e);
+            throw e;
+        }
+    }
 
     public void deleteUser(String username) {
         try {
