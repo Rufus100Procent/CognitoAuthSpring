@@ -13,8 +13,8 @@ phases:
       - mvn test
       - mvn clean install
       - echo Building Docker image
-      - docker build --build-arg COGNITO_REGION=$REGION --build-arg USER_POOL=$USER_POOL --build-arg CLIENT_ID=$CLIENT_ID --build-arg ACCESS_KEY=$ACCESS_KEY --build-arg SECRET_KEY=$SECRET_KEY  -t stykle/stykle:test81 .
-      - docker push docker.io/stykle/stykle:test81
+      - docker build --build-arg COGNITO_REGION=$REGION --build-arg USER_POOL=$USER_POOL --build-arg CLIENT_ID=$CLIENT_ID --build-arg ACCESS_KEY=$ACCESS_KEY --build-arg SECRET_KEY=$SECRET_KEY  -t johnnie3000/dev:v0 .
+      - docker push docker.io/johnnie3000/dev:v0
 
   post_build:
     commands:
