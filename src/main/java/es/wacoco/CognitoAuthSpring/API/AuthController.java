@@ -6,6 +6,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -123,6 +124,13 @@ public class AuthController {
         } catch (Exception e) {
             return "Error deleting user: " + e.getMessage();
         }
+    }
+
+
+    @PostMapping("/changePassword")
+    public String changePassword(@RequestParam String username, @RequestParam String previousPassword, @RequestParam String proposedPassword) {
+        cognitoService.changePassword(username, proposedPassword);
+        return "redirect:/dashboard";
     }
 
     @Operation(summary = "Logout")

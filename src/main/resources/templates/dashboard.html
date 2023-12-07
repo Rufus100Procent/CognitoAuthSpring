@@ -48,10 +48,30 @@
     <button type="submit">Add User to Group</button>
 </form>
 
+
 <!-- Logout Button -->
 <form id="logoutForm" action="/logout" method="post">
     <button type="submit">Logout</button>
 </form>
+
+<h2>Change Password</h2>
+<form action="/changePassword" method="post">
+    <div>
+
+        <label for="username">Username:</label>
+        <input type="text" id="username" name="username" required>
+    </div>
+    <div>
+        <label for="previousPassword">Current Password:</label>
+        <input type="password" id="previousPassword" name="previousPassword" required>
+    </div>
+    <div>
+        <label for="proposedPassword">New Password:</label>
+        <input type="password" id="proposedPassword" name="proposedPassword" required>
+    </div>
+    <button type="submit">Change Password</button>
+</form>
+
 
 <script>
     function deleteUser(event) {
