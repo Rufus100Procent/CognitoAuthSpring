@@ -10,24 +10,15 @@ import software.amazon.awssdk.services.cognitoidentityprovider.model.*;
 import java.util.Map;
 
 @Service
-/*
-// *** to do *******
-* many error handling is needed,
-* only admin need to delete a user and add a user to a group
-* defaultuser cannot delete or add someone to a group, it will get error message "you are not in admin group" or you dont have permitions
-* the class is getting biger, create diffrent classes, for example login/register/confirm/delete is in one class, and list/group is another
-* change password needs to be added
-* method that looks if a user is in a default group or admin, and create button if defaultuser logs in and clicks it, the user gets message and if it is admin it diffrent message
-* documentations
-* Write unit test in src/test/java*/
-public class CognitoService {
+public class CognitoAuthService {
 
-    private static final Logger logger = LoggerFactory.getLogger(CognitoService.class);
+    private static final Logger logger = LoggerFactory.getLogger(CognitoAuthService.class);
     private final AwsCredentials awsCredentials;
-
+    private final GroupServiceClass groupServiceClass;
     @Autowired
-    public CognitoService(AwsCredentials awsCredentials) {
+    public CognitoAuthService(AwsCredentials awsCredentials, GroupServiceClass groupServiceClass) {
         this.awsCredentials = awsCredentials;
+        this.groupServiceClass = groupServiceClass;
     }
 
     public void signUp(String username, String password, String email) {
@@ -44,7 +35,7 @@ public class CognitoService {
             awsCredentials.getCognitoClient().signUp(request);
 
             // Add the user to the "Default" group
-            addUserToGroup(username, "Default");
+            groupServiceClass.addUserToGroup(username, "Default");
 
             logger.info("User sign-up successful for username: {}", username);
         } catch (Exception e) {
@@ -91,62 +82,6 @@ public class CognitoService {
             return authResult;
         } catch (Exception e) {
             logger.error("Error during user sign-in for username: {}", username, e);
-            throw e;
-        }
-    }
-
-
-    public ListUsersResponse listUsers() {
-        try {
-            logger.info("Listing all users");
-
-            ListUsersRequest listUsersRequest = ListUsersRequest.builder()
-                    .userPoolId(awsCredentials.getCognitoPoolId())
-                    .build();
-
-            ListUsersResponse listUsersResponse = awsCredentials.getCognitoClient().listUsers(listUsersRequest);
-
-            logger.info("User list retrieval successful");
-            return listUsersResponse;
-        } catch (Exception e) {
-            logger.error("Error during user list retrieval", e);
-            throw e;
-        }
-    }
-
-    public ListGroupsResponse listAllGroups() {
-        try {
-            logger.info("Listing all groups");
-            ListGroupsRequest listGroupsRequest = ListGroupsRequest.builder()
-                    .userPoolId(awsCredentials.getCognitoPoolId())
-                    .build();
-
-            ListGroupsResponse listGroupsResponse = awsCredentials.getCognitoClient().listGroups(listGroupsRequest);
-
-            logger.info("Groups retrieval successful");
-            return listGroupsResponse;
-        } catch (Exception e) {
-            logger.error("Error during groups retrieval", e);
-            throw e;
-        }
-    }
-
-
-    public void addUserToGroup(String username, String groupName) {
-        try {
-            logger.info("Adding user {} to group {}", username, groupName);
-
-            AdminAddUserToGroupRequest addUserToGroupRequest = AdminAddUserToGroupRequest.builder()
-                    .groupName(groupName)
-                    .username(username)
-                    .userPoolId(awsCredentials.getCognitoPoolId())
-                    .build();
-
-            awsCredentials.getCognitoClient().adminAddUserToGroup(addUserToGroupRequest);
-
-            logger.info("User added to group successfully");
-        } catch (Exception e) {
-            logger.error("Error adding user to group", e);
             throw e;
         }
     }

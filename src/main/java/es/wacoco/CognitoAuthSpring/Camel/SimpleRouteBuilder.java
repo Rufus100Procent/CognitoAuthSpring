@@ -11,6 +11,5 @@ public class SimpleRouteBuilder extends RouteBuilder {
                 .to("http://51.21.1.117/api/student")
                 .log("Data retrieved from API: ${body}")
                 .to("log:myLogger?level=INFO");
-
     }
 }

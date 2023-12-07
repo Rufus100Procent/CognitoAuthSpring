@@ -1,12 +1,12 @@
 package es.wacoco.CognitoAuthSpring.API;
 
-import es.wacoco.CognitoAuthSpring.Service.CognitoService;
+import es.wacoco.CognitoAuthSpring.Service.CognitoAuthService;
+import es.wacoco.CognitoAuthSpring.Service.GroupServiceClass;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -19,13 +19,14 @@ import software.amazon.awssdk.services.cognitoidentityprovider.model.ListUsersRe
 //http://localhost:8080/v3/api-docs
 public class AuthController {
 
-    private final CognitoService cognitoService;
+    private final CognitoAuthService cognitoService;
 
     @Autowired
-    public AuthController(CognitoService cognitoService) {
+    public AuthController(CognitoAuthService cognitoService) {
         this.cognitoService = cognitoService;
     }
 
+    GroupServiceClass groupServiceClass;
     @Operation(summary = "Show registration form")
     @GetMapping("/register")
     public String showRegistrationForm() {
@@ -92,10 +93,10 @@ public class AuthController {
     @Operation(summary = "Show dashboard")
     @GetMapping("/dashboard")
     public String dashBoard(Model model) {
-        ListUsersResponse listUsersResponse = cognitoService.listUsers();
+        ListUsersResponse listUsersResponse = groupServiceClass.listUsers();
         model.addAttribute("users", listUsersResponse.users());
 
-        ListGroupsResponse groupsResponse = cognitoService.listAllGroups();
+        ListGroupsResponse groupsResponse = groupServiceClass.listAllGroups();
 
         // Add the list of group names to the model
         model.addAttribute("groups", groupsResponse.groups());
@@ -106,7 +107,7 @@ public class AuthController {
     @PostMapping("/addUserToGroup")
     @ResponseBody
     public void addUserToGroup(@RequestParam String username, @RequestParam String groupName) {
-        cognitoService.addUserToGroup(username, groupName);
+        groupServiceClass.addUserToGroup(username, groupName);
     }
     @Operation(
             summary = "Delete user",

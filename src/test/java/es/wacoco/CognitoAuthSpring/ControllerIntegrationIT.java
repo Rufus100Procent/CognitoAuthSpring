@@ -1,7 +1,7 @@
 package es.wacoco.CognitoAuthSpring;
 
 import es.wacoco.CognitoAuthSpring.API.AuthController;
-import es.wacoco.CognitoAuthSpring.Service.CognitoService;
+import es.wacoco.CognitoAuthSpring.Service.CognitoAuthService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,7 +24,7 @@ public class ControllerIntegrationIT {
     private MockMvc mockMvc;
 
     @MockBean
-    private CognitoService cognitoService;
+    private CognitoAuthService cognitoService;
 
     @Test
     void showRegistrationForm() throws Exception {
