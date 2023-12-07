@@ -44,7 +44,7 @@ public class CognitoService {
             awsCredentials.getCognitoClient().signUp(request);
 
             // Add the user to the "defaultUser" group
-            addUserToGroup(username, "defaultUser");
+            addUserToGroup(username, "Default");
 
             logger.info("User sign-up successful for username: {}", username);
         } catch (Exception e) {
