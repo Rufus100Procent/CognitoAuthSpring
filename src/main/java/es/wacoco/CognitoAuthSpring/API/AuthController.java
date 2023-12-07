@@ -1,7 +1,6 @@
 package es.wacoco.CognitoAuthSpring.API;
 
 import es.wacoco.CognitoAuthSpring.Service.CognitoAuthService;
-import es.wacoco.CognitoAuthSpring.Service.GroupServiceClass;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -26,7 +25,6 @@ public class AuthController {
         this.cognitoService = cognitoService;
     }
 
-    GroupServiceClass groupServiceClass;
     @Operation(summary = "Show registration form")
     @GetMapping("/register")
     public String showRegistrationForm() {
@@ -93,10 +91,10 @@ public class AuthController {
     @Operation(summary = "Show dashboard")
     @GetMapping("/dashboard")
     public String dashBoard(Model model) {
-        ListUsersResponse listUsersResponse = groupServiceClass.listUsers();
+        ListUsersResponse listUsersResponse = cognitoService.listUsers();
         model.addAttribute("users", listUsersResponse.users());
 
-        ListGroupsResponse groupsResponse = groupServiceClass.listAllGroups();
+        ListGroupsResponse groupsResponse = cognitoService.listAllGroups();
 
         // Add the list of group names to the model
         model.addAttribute("groups", groupsResponse.groups());
@@ -107,7 +105,7 @@ public class AuthController {
     @PostMapping("/addUserToGroup")
     @ResponseBody
     public void addUserToGroup(@RequestParam String username, @RequestParam String groupName) {
-        groupServiceClass.addUserToGroup(username, groupName);
+        cognitoService.addUserToGroup(username, groupName);
     }
     @Operation(
             summary = "Delete user",

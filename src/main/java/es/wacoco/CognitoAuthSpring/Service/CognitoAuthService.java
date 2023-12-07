@@ -10,15 +10,13 @@ import software.amazon.awssdk.services.cognitoidentityprovider.model.*;
 import java.util.Map;
 
 @Service
-public class CognitoAuthService {
+public class CognitoAuthService{
 
     private static final Logger logger = LoggerFactory.getLogger(CognitoAuthService.class);
     private final AwsCredentials awsCredentials;
-    private final GroupServiceClass groupServiceClass;
     @Autowired
-    public CognitoAuthService(AwsCredentials awsCredentials, GroupServiceClass groupServiceClass) {
+    public CognitoAuthService(AwsCredentials awsCredentials) {
         this.awsCredentials = awsCredentials;
-        this.groupServiceClass = groupServiceClass;
     }
 
     public void signUp(String username, String password, String email) {
@@ -35,12 +33,12 @@ public class CognitoAuthService {
             awsCredentials.getCognitoClient().signUp(request);
 
             // Add the user to the "Default" group
-            groupServiceClass.addUserToGroup(username, "Default");
+            addUserToGroup(username, "Default");
 
             logger.info("User sign-up successful for username: {}", username);
-        } catch (Exception e) {
-            logger.error("Error during user sign-up for username: {}", username, e);
-            throw e;
+        } catch(CognitoIdentityProviderException e) {
+            System.err.println(e.awsErrorDetails().errorMessage());
+//            System.exit(1);
         }
     }
     public void confirmSignUp(String username, String confirmationCode) {
@@ -54,9 +52,9 @@ public class CognitoAuthService {
 
             awsCredentials.getCognitoClient().confirmSignUp(request);
             logger.info("Confirmation successful for username: {}", username);
-        } catch (Exception e) {
+        } catch (CognitoIdentityProviderException e) {
             logger.error("Error during confirmation for username: {}", username, e);
-            throw e;
+            System.err.println(e.awsErrorDetails().errorMessage());
         }
     }
 
@@ -80,7 +78,8 @@ public class CognitoAuthService {
             AuthenticationResultType authResult = authResponse.authenticationResult();
             logger.info("User sign-in successful for username: {}", username);
             return authResult;
-        } catch (Exception e) {
+        } catch (CognitoIdentityProviderException e) {
+            System.err.println(e.awsErrorDetails().errorMessage());
             logger.error("Error during user sign-in for username: {}", username, e);
             throw e;
         }
@@ -98,9 +97,9 @@ public class CognitoAuthService {
 
             awsCredentials.getCognitoClient().adminSetUserPassword(passwordRequest);
             logger.info("Password set successfully for user: {}", username);
-        } catch (Exception e) {
-            logger.error("Error setting password for user: {}", username, e);
-            throw e;
+        } catch(CognitoIdentityProviderException e) {
+            System.err.println(e.awsErrorDetails().errorMessage());
+//            System.exit(1);
         }
     }
 
@@ -116,8 +115,63 @@ public class CognitoAuthService {
             awsCredentials.getCognitoClient().adminDeleteUser(deleteUserRequest);
 
             logger.info("User deletion successful for username: {}", username);
+        } catch(CognitoIdentityProviderException e) {
+            System.err.println(e.awsErrorDetails().errorMessage());
+//            System.exit(1);
+        }
+    }
+
+    public ListUsersResponse listUsers() {
+        try {
+            logger.info("Listing all users");
+
+            ListUsersRequest listUsersRequest = ListUsersRequest.builder()
+                    .userPoolId(awsCredentials.getCognitoPoolId())
+                    .build();
+
+            ListUsersResponse listUsersResponse = awsCredentials.getCognitoClient().listUsers(listUsersRequest);
+
+            logger.info("User list retrieval successful");
+            return listUsersResponse;
         } catch (Exception e) {
-            logger.error("Error during user deletion for username: {}", username, e);
+            logger.error("Error during user list retrieval", e);
+            throw e;
+        }
+    }
+
+    public ListGroupsResponse listAllGroups( ) {
+        try {
+            logger.info("Listing all groups");
+            ListGroupsRequest listGroupsRequest = ListGroupsRequest.builder()
+                    .userPoolId(awsCredentials.getCognitoPoolId())
+                    .build();
+
+            ListGroupsResponse listGroupsResponse = awsCredentials.getCognitoClient().listGroups(listGroupsRequest);
+
+            logger.info("Groups retrieval successful");
+            return listGroupsResponse;
+        } catch (Exception e) {
+            logger.error("Error during groups retrieval", e);
+            throw e;
+        }
+    }
+
+
+    public void addUserToGroup(String username, String groupName) {
+        try {
+            logger.info("Adding user {} to group {}", username, groupName);
+
+            AdminAddUserToGroupRequest addUserToGroupRequest = AdminAddUserToGroupRequest.builder()
+                    .groupName(groupName)
+                    .username(username)
+                    .userPoolId(awsCredentials.getCognitoPoolId())
+                    .build();
+
+            awsCredentials.getCognitoClient().adminAddUserToGroup(addUserToGroupRequest);
+
+            logger.info("User added to group successfully");
+        } catch (Exception e) {
+            logger.error("Error adding user to group", e);
             throw e;
         }
     }
