@@ -7,13 +7,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.*;
 
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
-/*
-* to do,
-* create a method that checks if user is a part of an admin group or default
-* */
 public class CognitoAuthService{
 
     private static final Logger logger = LoggerFactory.getLogger(CognitoAuthService.class);
@@ -178,5 +176,47 @@ public class CognitoAuthService{
             logger.error("Error adding user to group", e);
             throw e;
         }
+    }
+
+
+    public boolean isAdmin(String username) {
+        try {
+            AdminListGroupsForUserResponse groupsForUserResponse = adminListGroupsForUser(username);
+            List<GroupType> groups = groupsForUserResponse.groups();
+
+            for (GroupType group : groups) {
+                if ("Admin".equals(group.groupName())) {
+                    return true;
+                }
+            }
+            return false;
+
+
+        } catch (Exception e) {
+            handleCognitoException("Error checking isAdmin", username, e);
+            throw e;
+        }
+    }
+
+    public AdminListGroupsForUserResponse adminListGroupsForUser(String username) {
+        try {
+            AdminListGroupsForUserRequest listGroupsRequest = AdminListGroupsForUserRequest.builder()
+                    .username(username)
+                    .userPoolId(awsCredentials.getCognitoPoolId())
+                    .build();
+
+            return awsCredentials.getCognitoClient().adminListGroupsForUser(listGroupsRequest);
+        } catch (Exception e) {
+            handleCognitoException("Error listing groups for user", username, e);
+            throw e;
+        }
+    }
+
+
+
+
+    private void handleCognitoException(String message, String username, Exception e) {
+        logger.error(message + " for username: {}", username, e);
+        System.err.println(e.getMessage());
     }
 }
