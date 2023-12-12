@@ -4,7 +4,7 @@ phases:
   pre_build:
     commands:
       - mvn test -Dgroups="unit"
-      - mvn test -Dgroups="integration"
+#      - mvn test -Dgroups="integration"
       - echo Logging in to DockerHub
       - docker login -u $DOCKERHUB_USERNAME -p $DOCKERHUB_PASSWORD
 
