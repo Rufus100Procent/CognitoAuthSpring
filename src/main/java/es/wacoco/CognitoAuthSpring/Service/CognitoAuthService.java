@@ -1,6 +1,8 @@
 package es.wacoco.CognitoAuthSpring.Service;
 
 import es.wacoco.CognitoAuthSpring.Cognito.AwsCredentials;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,16 +11,32 @@ import software.amazon.awssdk.services.cognitoidentityprovider.model.*;
 
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @Service
-public class CognitoAuthService{
+public class CognitoAuthService {
 
     private static final Logger logger = LoggerFactory.getLogger(CognitoAuthService.class);
     private final AwsCredentials awsCredentials;
+
     @Autowired
     public CognitoAuthService(AwsCredentials awsCredentials) {
         this.awsCredentials = awsCredentials;
+    }
+
+
+    // Exception Handling method
+    private void handleCognitoException(String message, String username, Exception e) {
+        logger.error(message, username, e);
+        throw new CognitoServiceException(message, e);
+    }
+
+    // Session Management method
+    public String getCurrentLoggedInUsername(HttpServletRequest request) {
+        HttpSession session = request.getSession(false);
+        if (session != null) {
+            return (String) session.getAttribute("loggedInUsername");
+        }
+        return null;
     }
 
     public void signUp(String username, String password, String email) {
@@ -28,21 +46,21 @@ public class CognitoAuthService{
                     .clientId(awsCredentials.getCognitoClientId())
                     .username(username)
                     .password(password)
-                    .userAttributes(AttributeType.builder().name("email").value(email).build())
+                    .userAttributes(
+                            AttributeType.builder().name("email").value(email).build(),
+                            AttributeType.builder().name("custom:UserRole").value("Default").build()
+                    )
                     .build();
 
-            // Perform user sign-up
             awsCredentials.getCognitoClient().signUp(request);
 
-            // Add the user to the "Default" group
-            addUserToGroup(username, "Default");
-
+            // Log confirmation message
             logger.info("User sign-up successful for username: {}", username);
-        } catch(CognitoIdentityProviderException e) {
-            System.err.println(e.awsErrorDetails().errorMessage());
-//            System.exit(1);
+        } catch (CognitoIdentityProviderException e) {
+            handleCognitoException("Error during user sign-up", username, e);
         }
     }
+
     public void confirmSignUp(String username, String confirmationCode) {
         try {
             logger.info("Confirming sign-up for username: {}", username);
@@ -53,14 +71,16 @@ public class CognitoAuthService{
                     .build();
 
             awsCredentials.getCognitoClient().confirmSignUp(request);
+            addUserToGroup(username, "Default");
+
+            // Log confirmation message
             logger.info("Confirmation successful for username: {}", username);
         } catch (CognitoIdentityProviderException e) {
-            logger.error("Error during confirmation for username: {}", username, e);
-            System.err.println(e.awsErrorDetails().errorMessage());
+            handleCognitoException("Error during confirmation for username: {}", username, e);
         }
     }
 
-    public AuthenticationResultType signIn(String username, String password) {
+    public AuthenticationResultType signIn(String username, String password, HttpServletRequest request) {
         try {
             logger.info("Initiating user sign-in for username: {}", username);
             AdminInitiateAuthRequest authRequest = AdminInitiateAuthRequest.builder()
@@ -78,70 +98,116 @@ public class CognitoAuthService{
             AdminInitiateAuthResponse authResponse = awsCredentials.getCognitoClient().adminInitiateAuth(authRequest);
 
             AuthenticationResultType authResult = authResponse.authenticationResult();
+            HttpSession session = request.getSession();
+            session.setAttribute("loggedInUsername", username);
+
+            // Log confirmation message
             logger.info("User sign-in successful for username: {}", username);
             return authResult;
         } catch (CognitoIdentityProviderException e) {
-            System.err.println(e.awsErrorDetails().errorMessage());
-            logger.error("Error during user sign-in for username: {}", username, e);
+            handleCognitoException("Error during user sign-in for username: {}", username, e);
             throw e;
         }
     }
 
-
-    public void changePassword(String username, String newPassword) {
+    public void changePassword(String username, String newPassword, String previousPassword) {
         try {
             AdminSetUserPasswordRequest passwordRequest = AdminSetUserPasswordRequest.builder()
                     .userPoolId(awsCredentials.getCognitoPoolId())
                     .username(username)
+                    .password(previousPassword)
                     .password(newPassword)
                     .permanent(true)
                     .build();
 
             awsCredentials.getCognitoClient().adminSetUserPassword(passwordRequest);
+
+            // Log confirmation message
             logger.info("Password set successfully for user: {}", username);
-        } catch(CognitoIdentityProviderException e) {
-            System.err.println(e.awsErrorDetails().errorMessage());
-//            System.exit(1);
+        } catch (CognitoIdentityProviderException e) {
+            handleCognitoException("Error setting password for username: {}", username, e);
         }
     }
 
-    public void deleteUser(String username) {
+    public void deleteUser(String username, HttpServletRequest request) {
         try {
-            logger.info("Deleting user: {}", username);
+            String loggedInUsername = getCurrentLoggedInUsername(request);
+            logger.info("Logged-in Username: {}", loggedInUsername);
+            logger.info("Target Username: {}", username);
 
-            AdminDeleteUserRequest deleteUserRequest = AdminDeleteUserRequest.builder()
-                    .username(username)
+            // Check if the current user is an admin
+            if (isAdmin(loggedInUsername)) {
+                // Check if the user is in the "Default" group
+                if (isInDefaultGroup(username)) {
+                    // If the user is in the "Default" group, show a message
+                    String errorMessage = "You are not allowed to delete a user from the 'Default' group.";
+                    logger.warn(errorMessage);
+                    throw new IllegalStateException(errorMessage);
+                }
+
+                AdminDeleteUserRequest deleteUserRequest = AdminDeleteUserRequest.builder()
+                        .username(username)
+                        .userPoolId(awsCredentials.getCognitoPoolId())
+                        .build();
+
+                awsCredentials.getCognitoClient().adminDeleteUser(deleteUserRequest);
+
+                // Log confirmation message
+                logger.info("User deletion successful for username: {}", username);
+            } else {
+                // If not an admin, show a message
+                String errorMessage = "You are not allowed to perform this action. User " + loggedInUsername + " is not an admin.";
+                logger.warn(errorMessage);
+                throw new IllegalStateException(errorMessage);
+            }
+        } catch (CognitoIdentityProviderException e) {
+            handleCognitoException("Error during user deletion for username: {}", username, e);
+        }
+    }
+
+    public List<String> listUserAttributes(HttpServletRequest request) {
+        try {
+            String loggedInUsername = getCurrentLoggedInUsername(request);
+            AdminGetUserRequest adminGetUserRequest = AdminGetUserRequest.builder()
+                    .username(loggedInUsername)
                     .userPoolId(awsCredentials.getCognitoPoolId())
                     .build();
 
-            awsCredentials.getCognitoClient().adminDeleteUser(deleteUserRequest);
+            AdminGetUserResponse adminGetUserResponse = awsCredentials.getCognitoClient().adminGetUser(adminGetUserRequest);
 
-            logger.info("User deletion successful for username: {}", username);
-        } catch(CognitoIdentityProviderException e) {
-            System.err.println(e.awsErrorDetails().errorMessage());
-//            System.exit(1);
+            List<AttributeType> userAttributes = adminGetUserResponse.userAttributes();
+            for (AttributeType attribute : userAttributes) {
+                logger.info("Attribute - Name: {}, Value: {}", attribute.name(), attribute.value());
+            }
+
+            // Extract attribute names
+            return userAttributes.stream()
+                    .map(AttributeType::name)
+                    .toList();
+        } catch (CognitoIdentityProviderException e) {
+            handleCognitoException("Error listing user attributes", null, e);
+            throw e;
         }
     }
 
-    public ListUsersResponse listUsers() {
+    public ListUsersResponse listUsers(HttpServletRequest request) {
         try {
-            logger.info("Listing all users");
-
             ListUsersRequest listUsersRequest = ListUsersRequest.builder()
                     .userPoolId(awsCredentials.getCognitoPoolId())
                     .build();
 
             ListUsersResponse listUsersResponse = awsCredentials.getCognitoClient().listUsers(listUsersRequest);
 
+            // Log confirmation message
             logger.info("User list retrieval successful");
             return listUsersResponse;
-        } catch (Exception e) {
-            logger.error("Error during user list retrieval", e);
+        } catch (CognitoIdentityProviderException e) {
+            handleCognitoException("Error during user list retrieval", null, e);
             throw e;
         }
     }
 
-    public ListGroupsResponse listAllGroups( ) {
+    public ListGroupsResponse listAllGroups() {
         try {
             logger.info("Listing all groups");
             ListGroupsRequest listGroupsRequest = ListGroupsRequest.builder()
@@ -150,19 +216,35 @@ public class CognitoAuthService{
 
             ListGroupsResponse listGroupsResponse = awsCredentials.getCognitoClient().listGroups(listGroupsRequest);
 
+            // Log confirmation message
             logger.info("Groups retrieval successful");
             return listGroupsResponse;
-        } catch (Exception e) {
-            logger.error("Error during groups retrieval", e);
+        } catch (CognitoIdentityProviderException e) {
+            handleCognitoException("Error during groups retrieval", null, e);
             throw e;
         }
     }
 
-
     public void addUserToGroup(String username, String groupName) {
         try {
-            logger.info("Adding user {} to group {}", username, groupName);
+            // Check if the user is being added to the "Admin" group
+            if ("Admin".equals(groupName)) {
+                // If the user is being added to the "Admin" group, remove them from the "Default" group
+                if (isInDefaultGroup(username)) {
+                    AdminRemoveUserFromGroupRequest removeUserFromGroupRequest = AdminRemoveUserFromGroupRequest.builder()
+                            .groupName("Default")
+                            .username(username)
+                            .userPoolId(awsCredentials.getCognitoPoolId())
+                            .build();
 
+                    awsCredentials.getCognitoClient().adminRemoveUserFromGroup(removeUserFromGroupRequest);
+
+                    // Log confirmation message
+                    logger.info("User removed from 'Default' group: {}", username);
+                }
+            }
+
+            // Add the user to the specified group
             AdminAddUserToGroupRequest addUserToGroupRequest = AdminAddUserToGroupRequest.builder()
                     .groupName(groupName)
                     .username(username)
@@ -171,13 +253,28 @@ public class CognitoAuthService{
 
             awsCredentials.getCognitoClient().adminAddUserToGroup(addUserToGroupRequest);
 
-            logger.info("User added to group successfully");
-        } catch (Exception e) {
-            logger.error("Error adding user to group", e);
+            // Log confirmation message
+            logger.info("User added to group: {} - {}", username, groupName);
+        } catch (CognitoIdentityProviderException e) {
+            handleCognitoException("Error adding user to group", username, e);
+        }
+    }
+    public boolean isInDefaultGroup(String username) {
+        try {
+            AdminListGroupsForUserResponse groupsForUserResponse = adminListGroupsForUser(username);
+            List<GroupType> groups = groupsForUserResponse.groups();
+
+            for (GroupType group : groups) {
+                if ("Default".equals(group.groupName())) {
+                    return true;
+                }
+            }
+            return false;
+        } catch (CognitoIdentityProviderException e) {
+            handleCognitoException("Error checking group for username: {}", username, e);
             throw e;
         }
     }
-
 
     public boolean isAdmin(String username) {
         try {
@@ -190,13 +287,12 @@ public class CognitoAuthService{
                 }
             }
             return false;
-
-
-        } catch (Exception e) {
-            handleCognitoException("Error checking isAdmin", username, e);
+        } catch (CognitoIdentityProviderException e) {
+            handleCognitoException("Error checking isAdmin for username: {}", username, e);
             throw e;
         }
     }
+
 
     public AdminListGroupsForUserResponse adminListGroupsForUser(String username) {
         try {
@@ -206,17 +302,16 @@ public class CognitoAuthService{
                     .build();
 
             return awsCredentials.getCognitoClient().adminListGroupsForUser(listGroupsRequest);
-        } catch (Exception e) {
-            handleCognitoException("Error listing groups for user", username, e);
+        } catch (CognitoIdentityProviderException e) {
+            handleCognitoException("Error listing groups for user for username: {}", username, e);
             throw e;
         }
     }
 
-
-
-
-    private void handleCognitoException(String message, String username, Exception e) {
-        logger.error(message + " for username: {}", username, e);
-        System.err.println(e.getMessage());
+    // Custom Exception for Cognito Service
+    public static class CognitoServiceException extends RuntimeException {
+        public CognitoServiceException(String message, Throwable cause) {
+            super(message, cause);
+        }
     }
 }
