@@ -1,22 +1,24 @@
 package es.wacoco.CognitoAuthSpring.API;
 
 import es.wacoco.CognitoAuthSpring.Service.CognitoAuthService;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.AuthenticationResultType;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.ListGroupsResponse;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.ListUsersResponse;
 
 @Controller
-//http://localhost:8080/swagger-ui/index.html#/
-//http://localhost:8080/v3/api-docs
 public class AuthController {
+    private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
 
     private final CognitoAuthService cognitoService;
 
@@ -25,116 +27,115 @@ public class AuthController {
         this.cognitoService = cognitoService;
     }
 
-    @Operation(summary = "Show registration form")
     @GetMapping("/register")
     public String showRegistrationForm() {
         return "register";
     }
 
-    @Operation(summary = "Register user")
     @PostMapping("/register")
     public String register(
             @RequestParam String username,
             @RequestParam String password,
             @RequestParam String email
     ) {
-        cognitoService.signUp(username, password, email);
-        return "redirect:/confirm";
+        try {
+            cognitoService.signUp(username, password, email);
+            return "redirect:/confirm";
+        } catch (CognitoAuthService.CognitoServiceException e) {
+            return "redirect:/register?error=" + e.getMessage();
+        }
     }
 
-    @Operation(summary = "Show confirmation form")
     @GetMapping("/confirm")
     public String showConfirmationForm() {
         return "confirm";
     }
 
-    @Operation(
-            summary = "Confirm user registration",
-            responses = {
-                    @ApiResponse(responseCode = "200", description = "Confirmation successful"),
-                    @ApiResponse(responseCode = "400", description = "Invalid confirmation code", content = @Content(schema = @Schema(implementation = String.class)))
-            }
-    )
     @PostMapping("/confirm")
     public String confirm(
             @RequestParam String username,
             @RequestParam String confirmationCode
     ) {
-        cognitoService.confirmSignUp(username, confirmationCode);
-        return "redirect:/login";
+        try {
+            cognitoService.confirmSignUp(username, confirmationCode);
+            return "redirect:/login";
+        } catch (CognitoAuthService.CognitoServiceException e) {
+            return "redirect:/confirm?error=" + e.getMessage();
+        }
     }
 
-    @Operation(summary = "Show login form")
     @GetMapping("/login")
     public String showLoginForm() {
         return "login";
     }
 
-    @Operation(
-            summary = "User login",
-            responses = {
-                    @ApiResponse(responseCode = "200", description = "Login successful"),
-                    @ApiResponse(responseCode = "401", description = "Invalid credentials", content = @Content(schema = @Schema(implementation = String.class)))
-            }
-    )
     @PostMapping("/login")
     public String login(
             @RequestParam String username,
             @RequestParam String password,
+            HttpServletRequest request,
             Model model
     ) {
-        AuthenticationResultType authResult = cognitoService.signIn(username, password);
-        model.addAttribute("accessToken", authResult.accessToken());
-        return "redirect:/dashboard";
+        try {
+            AuthenticationResultType authResult = cognitoService.signIn(username, password, request);
+            model.addAttribute("accessToken", authResult.accessToken());
+            return "redirect:/dashboard";
+        } catch (CognitoAuthService.CognitoServiceException e) {
+            logger.error("Cognito Service Exception: {}", e.getMessage());
+
+            // Optionally, you can rethrow the exception if you want it to be handled elsewhere
+            throw e;
+        }
     }
 
-    @Operation(summary = "Show dashboard")
     @GetMapping("/dashboard")
-    public String dashBoard(Model model) {
-        ListUsersResponse listUsersResponse = cognitoService.listUsers();
-        model.addAttribute("users", listUsersResponse.users());
+    public String dashBoard(HttpServletRequest request, Model model) {
+        try {
+            ListUsersResponse listUsersResponse = cognitoService.listUsers(request);
+            model.addAttribute("users", listUsersResponse.users());
 
-        ListGroupsResponse groupsResponse = cognitoService.listAllGroups();
+            ListGroupsResponse groupsResponse = cognitoService.listAllGroups();
+            model.addAttribute("groups", groupsResponse.groups());
 
-        // Add the list of group names to the model
-        model.addAttribute("groups", groupsResponse.groups());
-        return "dashboard";
+            return "dashboard";
+        } catch (CognitoAuthService.CognitoServiceException e) {
+            return "redirect:/login?error=" + e.getMessage();
+        }
     }
 
-    @Operation(summary = "Add user to group")
     @PostMapping("/addUserToGroup")
     @ResponseBody
     public void addUserToGroup(@RequestParam String username, @RequestParam String groupName) {
         cognitoService.addUserToGroup(username, groupName);
     }
-    @Operation(
-            summary = "Delete user",
-            responses = {
-                    @ApiResponse(responseCode = "200", description = "User deleted successfully"),
-                    @ApiResponse(responseCode = "404", description = "User not found", content = @Content(schema = @Schema(implementation = String.class)))
-            }
-    )
+
     @DeleteMapping("/deleteUser/{username}")
     @ResponseBody
-    public String deleteUser(@PathVariable String username) {
+    public String deleteUser(@PathVariable String username, HttpServletRequest request) {
         try {
-            cognitoService.deleteUser(username);
+            cognitoService.deleteUser(username, request);
             return "User deleted successfully";
-        } catch (Exception e) {
+        } catch (CognitoAuthService.CognitoServiceException e) {
             return "Error deleting user: " + e.getMessage();
         }
     }
 
-
     @PostMapping("/changePassword")
     public String changePassword(@RequestParam String username, @RequestParam String newPassword, @RequestParam String previousPassword) {
-        cognitoService.changePassword(username, previousPassword);
-        return "redirect:/dashboard";
+        try {
+            cognitoService.changePassword(username, newPassword, previousPassword);
+            return "redirect:/dashboard";
+        } catch (CognitoAuthService.CognitoServiceException e) {
+            return "redirect:/dashboard?error=" + e.getMessage();
+        }
     }
 
-    @Operation(summary = "Logout")
-    @PostMapping("/logout")
-    public String logout() {
+    @GetMapping("/logout")
+    public String logout(HttpServletRequest request, HttpServletResponse response) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null) {
+            new SecurityContextLogoutHandler().logout(request, response, auth);
+        }
         return "redirect:/login";
     }
 }

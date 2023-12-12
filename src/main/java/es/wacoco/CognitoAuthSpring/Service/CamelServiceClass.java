@@ -2,6 +2,8 @@ package es.wacoco.CognitoAuthSpring.Service;
 
 import org.apache.camel.CamelContext;
 import org.apache.camel.ProducerTemplate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -10,16 +12,23 @@ import java.time.format.DateTimeFormatter;
 
 @Service
 public class CamelServiceClass {
+    private static final Logger logger = LoggerFactory.getLogger(CognitoAuthService.class);
 
     private final CamelContext camelContext;
-
+    private final CognitoAuthService cognitoAuthService;
     @Autowired
-    public CamelServiceClass(CamelContext camelContext) {
+    public CamelServiceClass(CamelContext camelContext, CognitoAuthService cognitoAuthService) {
         this.camelContext = camelContext;
+        this.cognitoAuthService = cognitoAuthService;
     }
 
-    public String startRoute(){
+    public String startRoute(String username) {
         try {
+            if (!cognitoAuthService.isAdmin(username)) {
+                logger.warn("Unauthorized access attempt by user: {}", username);
+                return "User does not have permission to access this route.";
+            }
+
             // Trigger the Camel route using ProducerTemplate
             ProducerTemplate producerTemplate = camelContext.createProducerTemplate();
             // Sending a message to direct:startRoute to initiate the route
